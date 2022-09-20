@@ -1,3 +1,5 @@
+use core::num;
+
 const WIDTH: usize = 640;
 const HEIGHT: usize = 640;
 const BORDER: usize = 100;
@@ -55,6 +57,37 @@ impl World {
 
         return neighbors;
     }
+
+    fn get_max_age_adjacent(&self, x: usize, y: usize) -> usize {
+        let neighbors: Vec<Cell> = self.get_neighbors(x, y);
+
+        let num_neighbors: usize = neighbors.len();
+        let mut max_age: usize = 0;
+        for neighbor in 0..num_neighbors {
+            let neighbor_age: usize = neighbors[neighbor].age;
+            if neighbors[neighbor].age > max_age {
+                max_age = neighbor_age;
+            }
+        }
+
+        return max_age;
+    }
+
+    fn get_adjacent_alive_count(&self, x: usize, y: usize) -> usize {
+        let neighbors: Vec<Cell> = self.get_neighbors(x, y);
+
+        let num_neighbors: usize = neighbors.len();
+        let mut alive_count: usize = 0;
+        for neighbor in 0..num_neighbors {
+            if neighbors[neighbor].alive {
+                alive_count += 1;
+            }
+        }
+
+        return alive_count;
+    }
+
+    fn tick(&self) {}
 }
 
 fn main() {}
@@ -64,7 +97,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn get_neighbors_default() {
+    fn test_get_neighbors_default() {
         let mut test_world: World = World::init();
         test_world.cells[0][0].age = 1;
         test_world.cells[1][0].age = 2;
@@ -119,7 +152,7 @@ mod tests {
     }
 
     #[test]
-    fn get_neighbors_bottom_left() {
+    fn test_get_neighbors_bottom_left() {
         let mut test_world: World = World::init();
         test_world.cells[1][0].age = 1;
         test_world.cells[0][1].age = 2;
@@ -149,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn get_neighbors_top_right() {
+    fn test_get_neighbors_top_right() {
         let mut test_world: World = World::init();
         test_world.cells[WORLD_SIZE - 2][WORLD_SIZE - 2].age = 1;
         test_world.cells[WORLD_SIZE - 1][WORLD_SIZE - 2].age = 2;
@@ -176,5 +209,45 @@ mod tests {
             assert_eq!(neighbors[i].alive, expected_result[i].alive);
             assert_eq!(neighbors[i].age, expected_result[i].age);
         }
+    }
+
+    #[test]
+    fn test_get_max_age_adjacent() {
+        let mut test_world: World = World::init();
+        test_world.cells[0][0] = Cell {
+            alive: true,
+            age: 2,
+        };
+        test_world.cells[2][1] = Cell {
+            alive: true,
+            age: 1,
+        };
+        test_world.cells[1][2] = Cell {
+            alive: true,
+            age: 42,
+        };
+
+        let max_age: usize = test_world.get_max_age_adjacent(1, 1);
+        assert_eq!(max_age, 42);
+    }
+
+    #[test]
+    fn test_get_adjacent_alive_count() {
+        let mut test_world: World = World::init();
+        test_world.cells[0][0] = Cell {
+            alive: true,
+            age: 2,
+        };
+        test_world.cells[2][1] = Cell {
+            alive: true,
+            age: 1,
+        };
+        test_world.cells[1][2] = Cell {
+            alive: true,
+            age: 42,
+        };
+
+        let alive_count: usize = test_world.get_adjacent_alive_count(1, 1);
+        assert_eq!(alive_count, 3);
     }
 }
