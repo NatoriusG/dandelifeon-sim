@@ -17,7 +17,7 @@ struct World {
 }
 
 impl World {
-    fn new() -> World {
+    fn init() -> World {
         let empty_board: CellBoard = [[Cell {
             alive: false,
             age: 0,
@@ -25,6 +25,156 @@ impl World {
 
         return World { cells: empty_board };
     }
+
+    fn get_neighbors(&self, x: usize, y: usize) -> Vec<Cell> {
+        let mut neighbor_coords: [(isize, isize); 8] = [(0, 0); 8];
+        let mut neighbor_index: usize = 0;
+        for y_offset in -1..2 {
+            for x_offset in -1..2 {
+                // handle case of self
+                if x_offset == 0 && y_offset == 0 {
+                    continue;
+                }
+                neighbor_coords[neighbor_index] = (x as isize + x_offset, y as isize + y_offset);
+                neighbor_index += 1;
+            }
+        }
+
+        let mut neighbors: Vec<Cell> = Vec::with_capacity(8);
+        for cell in 0..8 {
+            let neighbor_x: isize = neighbor_coords[cell].0;
+            let neighbor_y: isize = neighbor_coords[cell].1;
+            if neighbor_x >= 0
+                && neighbor_y >= 0
+                && neighbor_x < WORLD_SIZE as isize
+                && neighbor_y < WORLD_SIZE as isize
+            {
+                neighbors.push(self.cells[neighbor_x as usize][neighbor_y as usize]);
+            }
+        }
+
+        return neighbors;
+    }
 }
 
 fn main() {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_neighbors_default() {
+        let mut test_world: World = World::init();
+        test_world.cells[0][0].age = 1;
+        test_world.cells[1][0].age = 2;
+        test_world.cells[2][0].age = 3;
+        test_world.cells[0][1].age = 4;
+        test_world.cells[2][1].age = 5;
+        test_world.cells[0][2].age = 6;
+        test_world.cells[1][2].age = 7;
+        test_world.cells[2][2].age = 8;
+
+        let neighbors: Vec<Cell> = test_world.get_neighbors(1, 1);
+        let expected_result: Vec<Cell> = vec![
+            Cell {
+                alive: false,
+                age: 1,
+            },
+            Cell {
+                alive: false,
+                age: 2,
+            },
+            Cell {
+                alive: false,
+                age: 3,
+            },
+            Cell {
+                alive: false,
+                age: 4,
+            },
+            Cell {
+                alive: false,
+                age: 5,
+            },
+            Cell {
+                alive: false,
+                age: 6,
+            },
+            Cell {
+                alive: false,
+                age: 7,
+            },
+            Cell {
+                alive: false,
+                age: 8,
+            },
+        ];
+
+        assert_eq!(neighbors.len(), expected_result.len());
+        for i in 0..8 {
+            assert_eq!(neighbors[i].alive, expected_result[i].alive);
+            assert_eq!(neighbors[i].age, expected_result[i].age);
+        }
+    }
+
+    #[test]
+    fn get_neighbors_bottom_left() {
+        let mut test_world: World = World::init();
+        test_world.cells[1][0].age = 1;
+        test_world.cells[0][1].age = 2;
+        test_world.cells[1][1].age = 3;
+
+        let neighbors: Vec<Cell> = test_world.get_neighbors(0, 0);
+        let expected_result: Vec<Cell> = vec![
+            Cell {
+                alive: false,
+                age: 1,
+            },
+            Cell {
+                alive: false,
+                age: 2,
+            },
+            Cell {
+                alive: false,
+                age: 3,
+            },
+        ];
+
+        assert_eq!(neighbors.len(), expected_result.len());
+        for i in 0..3 {
+            assert_eq!(neighbors[i].alive, expected_result[i].alive);
+            assert_eq!(neighbors[i].age, expected_result[i].age);
+        }
+    }
+
+    #[test]
+    fn get_neighbors_top_right() {
+        let mut test_world: World = World::init();
+        test_world.cells[WORLD_SIZE - 2][WORLD_SIZE - 2].age = 1;
+        test_world.cells[WORLD_SIZE - 1][WORLD_SIZE - 2].age = 2;
+        test_world.cells[WORLD_SIZE - 2][WORLD_SIZE - 1].age = 3;
+
+        let neighbors: Vec<Cell> = test_world.get_neighbors(WORLD_SIZE - 1, WORLD_SIZE - 1);
+        let expected_result: Vec<Cell> = vec![
+            Cell {
+                alive: false,
+                age: 1,
+            },
+            Cell {
+                alive: false,
+                age: 2,
+            },
+            Cell {
+                alive: false,
+                age: 3,
+            },
+        ];
+
+        assert_eq!(neighbors.len(), expected_result.len());
+        for i in 0..3 {
+            assert_eq!(neighbors[i].alive, expected_result[i].alive);
+            assert_eq!(neighbors[i].age, expected_result[i].age);
+        }
+    }
+}
