@@ -1,10 +1,12 @@
-use core::num;
+extern crate console;
 
-const WIDTH: usize = 640;
-const HEIGHT: usize = 640;
-const BORDER: usize = 100;
+use std::io::BufRead;
+
+use console::{Key, Term};
+
+const WIDTH: usize = 100;
+const HEIGHT: usize = 40;
 const WORLD_SIZE: usize = 25;
-const CELL_SIZE: usize = 64;
 
 #[derive(Clone, Copy, Debug)]
 struct Cell {
@@ -19,13 +21,28 @@ struct World {
 }
 
 impl World {
-    fn init() -> World {
+    fn new() -> World {
         let empty_board: CellBoard = [[Cell {
             alive: false,
             age: 0,
         }; WORLD_SIZE]; WORLD_SIZE];
 
         return World { cells: empty_board };
+    }
+
+    fn from_template() -> World {
+        let mut data = String::new();
+
+        {
+            let template_path = std::path::Path::new("board.dat");
+            let mut file = std::fs::File::open(&template_path).unwrap();
+            std::io::Read::read_to_string(&mut file, &mut data).unwrap();
+        }
+
+        let data_bytes: &[u8] = data.as_bytes();
+        let lines = data_bytes.lines();
+
+        return World::new();
     }
 
     fn get_neighbors(&self, x: usize, y: usize) -> Vec<Cell> {
@@ -90,7 +107,9 @@ impl World {
     fn tick(&self) {}
 }
 
-fn main() {}
+fn main() {
+    let world: World = World::new();
+}
 
 #[cfg(test)]
 mod tests {
@@ -98,7 +117,7 @@ mod tests {
 
     #[test]
     fn test_get_neighbors_default() {
-        let mut test_world: World = World::init();
+        let mut test_world: World = World::new();
         test_world.cells[0][0].age = 1;
         test_world.cells[1][0].age = 2;
         test_world.cells[2][0].age = 3;
@@ -153,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_get_neighbors_bottom_left() {
-        let mut test_world: World = World::init();
+        let mut test_world: World = World::new();
         test_world.cells[1][0].age = 1;
         test_world.cells[0][1].age = 2;
         test_world.cells[1][1].age = 3;
@@ -183,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_get_neighbors_top_right() {
-        let mut test_world: World = World::init();
+        let mut test_world: World = World::new();
         test_world.cells[WORLD_SIZE - 2][WORLD_SIZE - 2].age = 1;
         test_world.cells[WORLD_SIZE - 1][WORLD_SIZE - 2].age = 2;
         test_world.cells[WORLD_SIZE - 2][WORLD_SIZE - 1].age = 3;
@@ -213,7 +232,7 @@ mod tests {
 
     #[test]
     fn test_get_max_age_adjacent() {
-        let mut test_world: World = World::init();
+        let mut test_world: World = World::new();
         test_world.cells[0][0] = Cell {
             alive: true,
             age: 2,
@@ -233,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_get_adjacent_alive_count() {
-        let mut test_world: World = World::init();
+        let mut test_world: World = World::new();
         test_world.cells[0][0] = Cell {
             alive: true,
             age: 2,
