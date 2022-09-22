@@ -18,6 +18,8 @@ struct World {
     cells: CellBoard,
 }
 
+type CellChange = (usize, usize, Cell);
+
 impl World {
     fn new() -> World {
         let empty_board: CellBoard = [[Cell {
@@ -28,7 +30,8 @@ impl World {
         return World { cells: empty_board };
     }
 
-    fn from_template() -> World {
+    // return list of cells applied by template as well as world with template state
+    fn from_template() -> (World, Vec<CellChange>) {
         let mut data: Vec<u8> = Vec::new();
 
         // nasty unwrap
@@ -42,6 +45,7 @@ impl World {
         // assuming template is valid
         // need to add error checking/handling later
         let mut world: World = World::new();
+        let mut template_cells: Vec<CellChange> = Vec::with_capacity(WORLD_SIZE * WORLD_SIZE);
         let mut byte_count = 0;
         for char_byte in data {
             let current_char: char = char_byte as char;
@@ -49,7 +53,13 @@ impl World {
             if current_char == 'x' {
                 let y_loc: usize = byte_count / WORLD_SIZE;
                 let x_loc: usize = byte_count % WORLD_SIZE;
-                world.cells[x_loc][y_loc].alive = true;
+                let template_cell: Cell = Cell {
+                    alive: true,
+                    age: 0,
+                };
+
+                world.cells[x_loc][y_loc] = template_cell;
+                template_cells.push((x_loc, y_loc, template_cell));
             }
 
             // only update byte_count on valid encoded char
@@ -58,7 +68,7 @@ impl World {
             }
         }
 
-        return world;
+        return (world, template_cells);
     }
 
     fn get_neighbors(&self, x: usize, y: usize) -> Vec<Cell> {
@@ -120,7 +130,76 @@ impl World {
         return alive_count;
     }
 
-    fn tick(&self) {}
+    // returns a vector of x,y,cell tuples to track which cells have changed
+    fn tick(&mut self) -> Vec<CellChange> {
+        // max possible changes is every cell, and there are WORLD_SIZE * WORLD_SIZE total cells
+        let mut changes: Vec<CellChange> = Vec::with_capacity(WORLD_SIZE * WORLD_SIZE);
+
+        for y in 0..WORLD_SIZE {
+            for x in 0..WORLD_SIZE {
+                let current_cell = self.cells[x][y];
+                let neighbors: Vec<Cell> = self.get_neighbors(x, y);
+                let alive_neighbors: usize =
+                    neighbors
+                        .into_iter()
+                        .fold(0, |alive_count: usize, neighbor: Cell| {
+                            if neighbor.alive {
+                                alive_count + 1
+                            } else {
+                                alive_count
+                            }
+                        });
+
+                if current_cell.alive {
+                    // surviving
+                    if alive_neighbors == 2 || alive_neighbors == 3 {
+                        changes.push((
+                            x,
+                            y,
+                            Cell {
+                                alive: true,
+                                age: current_cell.age + 1,
+                            },
+                        ));
+                    }
+                    // dying
+                    else {
+                        changes.push((
+                            x,
+                            y,
+                            Cell {
+                                alive: false,
+                                age: 0,
+                            },
+                        ))
+                    }
+                }
+                // reviving
+                else if alive_neighbors == 3 {
+                    let new_age = self.get_max_age_adjacent(x, y);
+                    changes.push((
+                        x,
+                        y,
+                        Cell {
+                            alive: true,
+                            age: std::cmp::min(new_age, 100),
+                        },
+                    ));
+                }
+            }
+        }
+
+        // propagate changes
+        for change in changes.iter() {
+            let x: usize = change.0;
+            let y: usize = change.1;
+            let new_state: Cell = change.2;
+
+            self.cells[x][y] = new_state;
+        }
+
+        return changes;
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -144,6 +223,8 @@ impl Renderer {
         }; WORLD_SIZE]; WORLD_SIZE]; 2];
 
         let init_term: Term = Term::stdout();
+        // unwrap still bad
+        init_term.hide_cursor().unwrap();
 
         let mut renderer: Renderer = Renderer {
             terminal: init_term,
@@ -167,7 +248,7 @@ impl Renderer {
                     // nasty unwrap, fix!
                     // multiply by 2 to maintain a space between each cell for nice rendering
                     self.terminal.move_cursor_to(x * 2, y).unwrap();
-                    print!(
+                    println!(
                         "{}",
                         self.terminal
                             .style()
@@ -211,9 +292,11 @@ impl Renderer {
 }
 
 fn main() {
-    let mut world: World = World::from_template();
+    let mut world: World;
+    let template_cells: Vec<(usize, usize, Cell)>;
+    (world, template_cells) = World::from_template();
 
-    let mut output: Renderer = Renderer::new();
+    /*let mut output: Renderer = Renderer::new();
     for y in 0..WORLD_SIZE {
         for x in 0..WORLD_SIZE {
             if world.cells[x][y].alive {
@@ -221,10 +304,45 @@ fn main() {
             }
         }
     }
-
     output.render();
+    std::thread::sleep(std::time::Duration::from_millis(1000));*/
 
-    output.terminal.move_cursor_to(0, WORLD_SIZE);
+    let mut output: Renderer = Renderer::new();
+    let mut changed_cells: Vec<CellChange> = template_cells;
+
+    let mut running: bool = true;
+    while running {
+        for change in changed_cells.iter() {
+            let x: usize = change.0;
+            let y: usize = change.1;
+            let new_cell: Cell = change.2;
+
+            let cell_char: char;
+            let color: Color;
+            (cell_char, color) = {
+                if new_cell.alive {
+                    ('X', Color::Green)
+                } else {
+                    ('-', Color::Red)
+                }
+            };
+
+            output.update(x, y, cell_char, color);
+        }
+
+        output.render();
+
+        // unwrap bad
+        let key: Key = output.terminal.read_key().unwrap();
+        if key == Key::Escape {
+            running = false;
+        } else {
+            changed_cells = world.tick();
+        }
+    }
+
+    // just for testing so the program ending doesn't overwrite part of the board
+    output.terminal.move_cursor_to(0, WORLD_SIZE).unwrap();
 }
 
 #[cfg(test)]
