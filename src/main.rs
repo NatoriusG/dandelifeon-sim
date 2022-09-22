@@ -1,8 +1,8 @@
 extern crate console;
 
-use std::io::BufRead;
+use std::io::Write;
 
-use console::{Key, Term};
+use console::{Color, Key, Style, Term};
 
 const WORLD_SIZE: usize = 25;
 
@@ -53,7 +53,7 @@ impl World {
             }
 
             // only update byte_count on valid encoded char
-            if current_char == 'x' || current_char == 'o' {
+            if current_char == 'x' || current_char == '-' {
                 byte_count += 1;
             }
         }
@@ -123,8 +123,108 @@ impl World {
     fn tick(&self) {}
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Tile {
+    value: char,
+    color: Color,
+}
+
+type RenderBuffer = [[Tile; WORLD_SIZE]; WORLD_SIZE];
+
+struct Renderer {
+    terminal: Term,
+    buffer: [RenderBuffer; 2],
+}
+
+impl Renderer {
+    fn new() -> Renderer {
+        let init_buffers: [RenderBuffer; 2] = [[[Tile {
+            value: '-',
+            color: Color::White,
+        }; WORLD_SIZE]; WORLD_SIZE]; 2];
+
+        let init_term: Term = Term::stdout();
+
+        let mut renderer: Renderer = Renderer {
+            terminal: init_term,
+            buffer: init_buffers,
+        };
+        renderer.force_render();
+
+        return renderer;
+    }
+
+    fn update(&mut self, x: usize, y: usize, value: char, color: Color) {
+        self.buffer[1][x][y] = Tile { value, color };
+    }
+
+    fn render(&mut self) {
+        for y in 0..WORLD_SIZE {
+            for x in 0..WORLD_SIZE {
+                if self.buffer[0][x][y] != self.buffer[1][x][y] {
+                    // write new data to terminal
+                    let tile_to_write: Tile = self.buffer[1][x][y];
+                    // nasty unwrap, fix!
+                    // multiply by 2 to maintain a space between each cell for nice rendering
+                    self.terminal.move_cursor_to(x * 2, y).unwrap();
+                    print!(
+                        "{}",
+                        self.terminal
+                            .style()
+                            .fg(tile_to_write.color)
+                            .apply_to(tile_to_write.value)
+                    );
+
+                    // update buffer
+                    self.buffer[0][x][y] = self.buffer[1][x][y];
+                }
+            }
+        }
+    }
+
+    // ignores whether buffers are different
+    fn force_render(&mut self) {
+        // more nasty unwrap to fix
+        self.terminal.clear_screen().unwrap();
+        self.terminal.move_cursor_to(0, 0).unwrap();
+
+        for y in 0..WORLD_SIZE {
+            for x in 0..WORLD_SIZE {
+                let tile_to_write: Tile = self.buffer[1][x][y];
+                print!(
+                    "{} ",
+                    self.terminal
+                        .style()
+                        .fg(tile_to_write.color)
+                        .apply_to(tile_to_write.value)
+                );
+
+                // handle newline
+                if x == 24 {
+                    print!("\n");
+                }
+
+                self.buffer[0][x][y] = self.buffer[1][x][y];
+            }
+        }
+    }
+}
+
 fn main() {
-    let world: World = World::from_template();
+    let mut world: World = World::from_template();
+
+    let mut output: Renderer = Renderer::new();
+    for y in 0..WORLD_SIZE {
+        for x in 0..WORLD_SIZE {
+            if world.cells[x][y].alive {
+                output.update(x, y, 'X', Color::Green);
+            }
+        }
+    }
+
+    output.render();
+
+    output.terminal.move_cursor_to(0, WORLD_SIZE);
 }
 
 #[cfg(test)]
