@@ -158,7 +158,7 @@ impl World {
                             y,
                             Cell {
                                 alive: true,
-                                age: current_cell.age + 1,
+                                age: std::cmp::min(current_cell.age + 1, 100),
                             },
                         ));
                     }
@@ -225,12 +225,13 @@ impl Renderer {
         let init_term: Term = Term::stdout();
         // unwrap still bad
         init_term.hide_cursor().unwrap();
+        init_term.clear_screen().unwrap();
 
         let mut renderer: Renderer = Renderer {
             terminal: init_term,
             buffer: init_buffers,
         };
-        renderer.force_render();
+        renderer.render(true);
 
         return renderer;
     }
@@ -239,10 +240,11 @@ impl Renderer {
         self.buffer[1][x][y] = Tile { value, color };
     }
 
-    fn render(&mut self) {
+    // render changes to console, optionally ignoring buffer differences to write everything
+    fn render(&mut self, force: bool) {
         for y in 0..WORLD_SIZE {
             for x in 0..WORLD_SIZE {
-                if self.buffer[0][x][y] != self.buffer[1][x][y] {
+                if self.buffer[0][x][y] != self.buffer[1][x][y] || force == true {
                     // write new data to terminal
                     let tile_to_write: Tile = self.buffer[1][x][y];
                     // nasty unwrap, fix!
@@ -264,7 +266,7 @@ impl Renderer {
     }
 
     // ignores whether buffers are different
-    fn force_render(&mut self) {
+    /*fn force_render(&mut self) {
         // more nasty unwrap to fix
         self.terminal.clear_screen().unwrap();
         self.terminal.move_cursor_to(0, 0).unwrap();
@@ -272,8 +274,10 @@ impl Renderer {
         for y in 0..WORLD_SIZE {
             for x in 0..WORLD_SIZE {
                 let tile_to_write: Tile = self.buffer[1][x][y];
+                // ditto on unwwrap
+                self.terminal.move_cursor_to(x * 4, y * 2).unwrap();
                 print!(
-                    "{} ",
+                    "{}",
                     self.terminal
                         .style()
                         .fg(tile_to_write.color)
@@ -288,24 +292,13 @@ impl Renderer {
                 self.buffer[0][x][y] = self.buffer[1][x][y];
             }
         }
-    }
+    }*/
 }
 
 fn main() {
     let mut world: World;
     let template_cells: Vec<(usize, usize, Cell)>;
     (world, template_cells) = World::from_template();
-
-    /*let mut output: Renderer = Renderer::new();
-    for y in 0..WORLD_SIZE {
-        for x in 0..WORLD_SIZE {
-            if world.cells[x][y].alive {
-                output.update(x, y, 'X', Color::Green);
-            }
-        }
-    }
-    output.render();
-    std::thread::sleep(std::time::Duration::from_millis(1000));*/
 
     let mut output: Renderer = Renderer::new();
     let mut changed_cells: Vec<CellChange> = template_cells;
@@ -317,20 +310,57 @@ fn main() {
             let y: usize = change.1;
             let new_cell: Cell = change.2;
 
-            let cell_char: char;
-            let color: Color;
-            (cell_char, color) = {
+            let cell_char: char = {
                 if new_cell.alive {
-                    ('X', Color::Green)
+                    'X'
                 } else {
-                    ('-', Color::Red)
+                    '-'
+                }
+            };
+            let color: Color = {
+                if !new_cell.alive {
+                    Color::Red
+                } else {
+                    let color_index: usize = 34 + (new_cell.age / 20);
+                    // unwrap bad
+                    Color::Color256(color_index.try_into().unwrap())
                 }
             };
 
             output.update(x, y, cell_char, color);
         }
 
-        output.render();
+        output.render(false);
+
+        let mut ages: Vec<(usize, usize, usize)> = world
+            .cells
+            .iter()
+            .flatten()
+            .enumerate()
+            .filter_map(|(index, cell)| {
+                if cell.alive {
+                    Some((cell.age, index % 25, index / 25))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        ages.sort_by(|a, b| b.0.cmp(&a.0));
+
+        // you know the drill
+        output.terminal.move_cursor_to(0, WORLD_SIZE).unwrap();
+        for (count, age_data) in ages.iter().take(25).enumerate() {
+            let age: usize = age_data.0;
+            let x: usize = age_data.1;
+            let y: usize = age_data.2;
+
+            // aaaaaa
+            output
+                .terminal
+                .move_cursor_to((WORLD_SIZE + 1) * 2, count + 1)
+                .unwrap();
+            println!("({x}, {y}): {age}");
+        }
 
         // unwrap bad
         let key: Key = output.terminal.read_key().unwrap();
