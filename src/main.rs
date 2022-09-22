@@ -4,8 +4,6 @@ use std::io::BufRead;
 
 use console::{Key, Term};
 
-const WIDTH: usize = 100;
-const HEIGHT: usize = 40;
 const WORLD_SIZE: usize = 25;
 
 #[derive(Clone, Copy, Debug)]
@@ -31,18 +29,36 @@ impl World {
     }
 
     fn from_template() -> World {
-        let mut data = String::new();
+        let mut data: Vec<u8> = Vec::new();
 
+        // nasty unwrap
+        // fix
         {
             let template_path = std::path::Path::new("board.dat");
             let mut file = std::fs::File::open(&template_path).unwrap();
-            std::io::Read::read_to_string(&mut file, &mut data).unwrap();
+            std::io::Read::read_to_end(&mut file, &mut data).unwrap();
         }
 
-        let data_bytes: &[u8] = data.as_bytes();
-        let lines = data_bytes.lines();
+        // assuming template is valid
+        // need to add error checking/handling later
+        let mut world: World = World::new();
+        let mut byte_count = 0;
+        for char_byte in data {
+            let current_char: char = char_byte as char;
 
-        return World::new();
+            if current_char == 'x' {
+                let y_loc: usize = byte_count / WORLD_SIZE;
+                let x_loc: usize = byte_count % WORLD_SIZE;
+                world.cells[x_loc][y_loc].alive = true;
+            }
+
+            // only update byte_count on valid encoded char
+            if current_char == 'x' || current_char == 'o' {
+                byte_count += 1;
+            }
+        }
+
+        return world;
     }
 
     fn get_neighbors(&self, x: usize, y: usize) -> Vec<Cell> {
@@ -108,7 +124,7 @@ impl World {
 }
 
 fn main() {
-    let world: World = World::new();
+    let world: World = World::from_template();
 }
 
 #[cfg(test)]
