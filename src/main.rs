@@ -1,8 +1,6 @@
 extern crate console;
 
-use std::io::Write;
-
-use console::{Color, Key, Style, Term};
+use console::{Color, Key, Term};
 
 const WORLD_SIZE: usize = 25;
 
@@ -119,13 +117,16 @@ impl World {
     fn get_adjacent_alive_count(&self, x: usize, y: usize) -> usize {
         let neighbors: Vec<Cell> = self.get_neighbors(x, y);
 
-        let num_neighbors: usize = neighbors.len();
-        let mut alive_count: usize = 0;
-        for neighbor in 0..num_neighbors {
-            if neighbors[neighbor].alive {
-                alive_count += 1;
-            }
-        }
+        let alive_count: usize =
+            neighbors
+                .into_iter()
+                .fold(0, |alive_count: usize, neighbor: Cell| {
+                    if neighbor.alive {
+                        alive_count + 1
+                    } else {
+                        alive_count
+                    }
+                });
 
         return alive_count;
     }
@@ -138,17 +139,7 @@ impl World {
         for y in 0..WORLD_SIZE {
             for x in 0..WORLD_SIZE {
                 let current_cell = self.cells[x][y];
-                let neighbors: Vec<Cell> = self.get_neighbors(x, y);
-                let alive_neighbors: usize =
-                    neighbors
-                        .into_iter()
-                        .fold(0, |alive_count: usize, neighbor: Cell| {
-                            if neighbor.alive {
-                                alive_count + 1
-                            } else {
-                                alive_count
-                            }
-                        });
+                let alive_neighbors = self.get_adjacent_alive_count(x, y);
 
                 if current_cell.alive {
                     // surviving
